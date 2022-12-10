@@ -52,6 +52,7 @@ impl Rope {
     fn move_direction(&mut self, direction: &Direction) {
         for index in 0..self.knots.len() {
             if index == 0 {
+                // move the head
                 match direction {
                     Direction::Up => self.knots[0].1 += 1,
                     Direction::Right => self.knots[0].0 += 1,
@@ -59,6 +60,7 @@ impl Rope {
                     Direction::Left => self.knots[0].0 -= 1,
                 }
             } else {
+                // move all other rope parts based on how the prev knot has moved.
                 let prev_knot = self.knots[index - 1];
                 let mut current_knot = self.knots[index];
 
