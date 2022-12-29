@@ -32,13 +32,28 @@ impl Display for GridTile {
 }
 struct Grid {
     grid: Vec<Vec<GridTile>>,
+    width: usize,
+    height: usize,
+    max_x: usize,
+    max_y: usize,
 }
 
 impl Grid {
-    fn new(width: usize, height: usize) -> Self {
+    fn new(width: usize, height: usize, max_x: usize, max_y: usize) -> Self {
         Grid {
             grid: vec![vec![GridTile::Air; width]; height],
+            width,
+            height,
+            max_x,
+            max_y,
         }
+    }
+
+    fn get_relative_x(&self, x: usize) -> usize {
+        self.width - ((self.max_x - x) + 1)
+    }
+    fn get_relative_y(&self, y: usize) -> usize {
+        self.height - ((self.max_y - y) + 1)
     }
 
     /// display the grid in stdout
@@ -56,8 +71,8 @@ impl Grid {
     fn spawn_sand(&mut self, position: (usize, usize)) -> Option<(usize, usize)> {
         let tile = self.get_tile(position);
         if tile.is_some() {
-            self.grid[position.1][position.0] = GridTile::Sand;
-            return Some((position.0, position.1 + 1));
+            // self.grid[position.1][position.0] = GridTile::Sand;
+            return Some((position.0, position.1));
         }
         None
     }
@@ -86,13 +101,16 @@ impl Grid {
         let left = (sand_pos.0 - 1, sand_pos.1 + 1);
         let right = (sand_pos.0 + 1, sand_pos.1 + 1);
 
+        let current_tile = self.get_tile(sand_pos);
         let down_tile = self.get_tile(down);
         let left_tile = self.get_tile(left);
         let right_tile = self.get_tile(right);
 
         if let Some(down_tile) = down_tile {
             if down_tile.movable() {
-                self.grid[sand_pos.1][sand_pos.0] = GridTile::Air;
+                if *current_tile.unwrap() != GridTile::SandSource {
+                    self.grid[sand_pos.1][sand_pos.0] = GridTile::Air;
+                }
                 self.grid[down.1][down.0] = GridTile::Sand;
                 return Some((down.0, down.1));
             }
@@ -100,7 +118,9 @@ impl Grid {
 
         if let Some(left_tile) = left_tile {
             if left_tile.movable() {
-                self.grid[sand_pos.1][sand_pos.0] = GridTile::Air;
+                if *current_tile.unwrap() != GridTile::SandSource {
+                    self.grid[sand_pos.1][sand_pos.0] = GridTile::Air;
+                }
                 self.grid[left.1][left.0] = GridTile::Sand;
                 return Some((left.0, left.1));
             }
@@ -108,7 +128,9 @@ impl Grid {
 
         if let Some(right_tile) = right_tile {
             if right_tile.movable() {
-                self.grid[sand_pos.1][sand_pos.0] = GridTile::Air;
+                if *current_tile.unwrap() != GridTile::SandSource {
+                    self.grid[sand_pos.1][sand_pos.0] = GridTile::Air;
+                }
                 self.grid[right.1][right.0] = GridTile::Sand;
                 return Some((right.0, right.1));
             }
@@ -132,7 +154,7 @@ fn parse_cave(file: String) -> Grid {
         .collect();
 
     // create all positions for rock line edges. Lines can only be horizontal or vertical
-    let start_items: HashSet<(i32, i32, GridTile)> = rock_lines
+    let mut start_items: HashSet<(i32, i32, GridTile)> = rock_lines
         .iter()
         .flat_map(|polyline| {
             polyline.iter().tuple_windows().flat_map(|(left, right)| {
@@ -161,26 +183,33 @@ fn parse_cave(file: String) -> Grid {
         })
         .collect();
 
+    let sand_spawner = (500, 0, GridTile::SandSource);
+    start_items.insert(sand_spawner);
+
     // get the grid dimensions to fit all start_items inside
-    let max_y = (start_items.iter().max_by_key(|item| item.1).unwrap().1) as isize;
-    // let min_y = (start_items.iter().min_by_key(|item| item.1).unwrap().1) as isize;
-    // let max_x = (start_items.iter().max_by_key(|item| item.0).unwrap().0) as isize;
-    // let min_x = (start_items.iter().min_by_key(|item| item.0).unwrap().0) as isize;
-    // let height = ((max_y - min_y) + 1) as isize;
-    // let width = ((max_x - min_x) + 1) as isize;
-    // let width = (width * 2) + 2;
-    let width = 500 + max_y + 2;
+    let max_y = (start_items.iter().max_by_key(|item| item.1).unwrap().1) as usize;
+    let min_y = (start_items.iter().min_by_key(|item| item.1).unwrap().1) as usize;
+    let max_x = (start_items.iter().max_by_key(|item| item.0).unwrap().0) as usize;
+    let min_x = (start_items.iter().min_by_key(|item| item.0).unwrap().0) as usize;
+    let height = (max_y - min_y) + 1;
+    let width = (max_x - min_x) + 1;
 
-    // let get_relative_x = |x: isize| width - ((max_x - x) + 1);
-    // let get_relative_y = |y: isize| height - ((max_y - y) + 1);
+    // add padding top-left to have isoscles triangle
+    let padding_horizontal = 20;
+    let padding_vertical = 2;
 
-    let mut cave = Grid::new(width as usize, max_y as usize + 2);
+    let mut cave = Grid::new(
+        width + padding_horizontal,
+        height + padding_vertical,
+        max_x + padding_horizontal / 2, // offset items in cave by half the padding to the top-left
+        max_y + padding_vertical / 2,
+    );
 
     // fill the cave grid with starting positions
     for position in start_items {
-        // let rel_y = get_relative_y(position.1 as isize);
-        // let rel_x = get_relative_x(position.0 as isize);
-        cave.grid[position.1 as usize][position.0 as usize] = position.2;
+        let rel_y = cave.get_relative_y(position.1 as usize);
+        let rel_x = cave.get_relative_x(position.0 as usize);
+        cave.grid[rel_y as usize][rel_x as usize] = position.2;
     }
 
     cave
@@ -189,11 +218,14 @@ fn parse_cave(file: String) -> Grid {
 pub fn process_input1(file: String) -> usize {
     let mut cave = parse_cave(file);
 
-    let sand_spawner = (500, 0);
+    cave.display();
+    let sand_spawner = (cave.get_relative_x(500), cave.get_relative_y(0));
     let sand = cave.spawn_sand(sand_spawner).unwrap();
+    println!("get sand {sand:?}");
     let mut sand: Option<(usize, usize)> = cave.move_sand(sand);
     let mut sand_counter = 0;
 
+    println!("start moving {sand:?}");
     while let Some(next_sand_pos) = sand {
         // is the next sand position bottom of the grid
         if next_sand_pos.1 == cave.grid.len() - 1 {
@@ -206,15 +238,15 @@ pub fn process_input1(file: String) -> usize {
             sand_counter += 1;
             sand = cave.move_sand(new_sand);
         }
+        cave.display();
     }
-    cave.display();
     sand_counter
 }
 
 pub fn process_input2(file: String) -> usize {
     let mut cave = parse_cave(file);
 
-    let sand_spawner = (500, 0);
+    let sand_spawner = (cave.get_relative_x(500), cave.get_relative_y(0));
     let sand = cave.spawn_sand(sand_spawner).unwrap();
     let mut sand: Option<(usize, usize)> = cave.move_sand(sand);
     let mut sand_counter = 0;
