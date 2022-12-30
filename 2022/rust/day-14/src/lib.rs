@@ -60,7 +60,14 @@ impl Grid {
     fn display(&self) {
         // print!("\x1B[2J");
         for (y_index, tiles) in self.grid.iter().enumerate() {
-            print!("{y_index} | ");
+            let three_digit_index = if y_index < 10 {
+                "00".to_string() + y_index.to_string().as_str()
+            } else if y_index < 100 {
+                "0".to_string() + y_index.to_string().as_str()
+            } else {
+                y_index.to_string()
+            };
+            print!("{three_digit_index} | ");
             for tile in tiles {
                 print!("{tile}");
             }
@@ -184,7 +191,7 @@ fn parse_cave(file: String) -> Grid {
         .collect();
 
     let sand_spawner = (500, 0, GridTile::SandSource);
-    start_items.insert(sand_spawner);
+    start_items.insert(sand_spawner.clone());
 
     // get the grid dimensions to fit all start_items inside
     let max_y = (start_items.iter().max_by_key(|item| item.1).unwrap().1) as usize;
@@ -192,16 +199,32 @@ fn parse_cave(file: String) -> Grid {
     let max_x = (start_items.iter().max_by_key(|item| item.0).unwrap().0) as usize;
     let min_x = (start_items.iter().min_by_key(|item| item.0).unwrap().0) as usize;
     let height = (max_y - min_y) + 1;
-    let width = (max_x - min_x) + 1;
+    let width = max_x - min_x;
 
-    // add padding top-left to have isoscles triangle
-    let padding_horizontal = 20;
+    // add padding top-bottom for one extra space
     let padding_vertical = 2;
 
+    // (https://www.triangle-calculator.com/?what=iso&a=C%3D45+h%3D500&submit=Solve)
+    // 1. calculate a isoscles triangle with top degree of 45° and a height of cave.max_y:
+    let isoscles_y_deg = 90_f64; // 45°
+    let isoscles_height: f64 = max_y as f64 + ((padding_vertical as f64) / 2_f64) + 1_f64;
+    // 2. calculate the angle α
+    let isoscles_a_deg: f64 = 90_f64 - isoscles_y_deg / 2_f64;
+    // 3. From the angle α and height h, we calculate side a:
+    let isoscles_a_side_sin = isoscles_a_deg.to_radians().sin();
+    let isoscles_a_side = isoscles_height / isoscles_a_side_sin;
+    // 5.  From the side a and height h, we calculate side c - Pythagorean theorem:
+    let isoscles_c_side = 2_f64 * (isoscles_a_side.powi(2) - isoscles_height.powi(2)).sqrt();
+
+    let offset_of_sand_to_right = max_x as isize - sand_spawner.0 as isize; // Sand is at x=500;
+    let offset_of_sand_to_left = min_x as isize - sand_spawner.0 as isize;
+    let offset_of_sand_to_center = (offset_of_sand_to_left + offset_of_sand_to_right) / 2;
+
     let mut cave = Grid::new(
-        width + padding_horizontal,
+        isoscles_c_side as usize,
         height + padding_vertical,
-        max_x + padding_horizontal / 2, // offset items in cave by half the padding to the top-left
+        ((max_x + ((isoscles_c_side as usize - width) / 2)) as isize - offset_of_sand_to_center)
+            as usize, // the max value has to be offset because the sand is not in the center
         max_y + padding_vertical / 2,
     );
 
@@ -217,15 +240,13 @@ fn parse_cave(file: String) -> Grid {
 
 pub fn process_input1(file: String) -> usize {
     let mut cave = parse_cave(file);
-
     cave.display();
+
     let sand_spawner = (cave.get_relative_x(500), cave.get_relative_y(0));
     let sand = cave.spawn_sand(sand_spawner).unwrap();
-    println!("get sand {sand:?}");
     let mut sand: Option<(usize, usize)> = cave.move_sand(sand);
     let mut sand_counter = 0;
 
-    println!("start moving {sand:?}");
     while let Some(next_sand_pos) = sand {
         // is the next sand position bottom of the grid
         if next_sand_pos.1 == cave.grid.len() - 1 {
@@ -240,11 +261,13 @@ pub fn process_input1(file: String) -> usize {
         }
         cave.display();
     }
+
     sand_counter
 }
 
 pub fn process_input2(file: String) -> usize {
     let mut cave = parse_cave(file);
+    cave.display();
 
     let sand_spawner = (cave.get_relative_x(500), cave.get_relative_y(0));
     let sand = cave.spawn_sand(sand_spawner).unwrap();
@@ -265,7 +288,10 @@ pub fn process_input2(file: String) -> usize {
         }
     }
     cave.display();
-    sand_counter
+
+    // we return sand_counter + 1, as a sand will not be spawned inside the sand_spawner when all
+    // three down positions of it are occupied.
+    sand_counter + 1
 }
 
 #[cfg(test)]
