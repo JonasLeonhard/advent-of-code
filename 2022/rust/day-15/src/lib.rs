@@ -91,16 +91,17 @@ pub fn process_input1(file: String, haystack_y: i64) -> usize {
 pub fn process_input2(file: String, local_maximum: i64) -> usize {
     let (_, sensors) = parse_to_sensors(&file).unwrap();
 
+    // DEBUG: display amount of overlapping ranges in row:
+    // let items: Vec<usize> = (0..local_maximum)
+    //     .map(|y| get_sensor_coverage(&sensors, y).len())
+    //     .dedup()
+    //     .collect();
+    // println!("x_coverage {items:?}");
+
     // because we know that only one position is free that doesnt overlap.
     // we can get the first y row with two ranges
     // then we get the end of the first range in that y row and go one to the right. That should be
     // the only uncovered position.
-    let items: Vec<usize> = (0..local_maximum)
-        .map(|y| get_sensor_coverage(&sensors, y).len())
-        .dedup()
-        .collect();
-    println!("x_coverage {items:?}");
-
     let (y, x_coverage): (i64, Vec<RangeInclusive<i64>>) = (0..local_maximum)
         .map(|y| (y, get_sensor_coverage(&sensors, y)))
         .find(|(_, range)| range.len() > 1)
