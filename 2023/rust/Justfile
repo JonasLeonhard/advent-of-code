@@ -6,3 +6,6 @@ create day:
 
 run day part:
   cargo run --bin {{part}} {{day}}
+
+test day part:
+  cargo test {{part}} -p {{day}}
