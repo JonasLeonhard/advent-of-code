@@ -1,0 +1,8 @@
+just:
+  just --choose
+
+create day:
+  cargo generate --path ./template --name {{day}}
+
+run day part:
+  cargo run --bin {{part}} {{day}}
