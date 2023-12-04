@@ -20,6 +20,7 @@ pub fn solve(input: &str) -> Result<String, String> {
         })
         .sum();
 
+    result.lines().for_each(|line| println!("{}", line));
     Ok(result.to_string())
 }
 

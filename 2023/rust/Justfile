@@ -5,7 +5,7 @@ create day:
   cargo generate --path ./template --name {{day}}
 
 run day part:
-  cargo run --bin {{part}} {{day}}
+  cd {{day}}; cargo run --bin {{part}} {{day}}
 
 test day part:
-  cargo test {{part}} -p {{day}}
+  cd {{day}}; cargo test {{part}} -p {{day}}
